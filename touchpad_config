@@ -1,0 +1,106 @@
+#!/bin/sh
+# Function to show the help message
+show_help() {
+    echo "touchpad_config is a tool that allows you to easily configure your laptop's touchpad."
+    echo "Usage: touchpad_config <options> [device_id(optional)]"
+    echo ""
+    echo "Options: (without brackets)"
+    echo "touchpad_config (-h, --help)			shows this help message"
+    echo "touchpad_config (-l, --list)			shows a list of input devices"
+    echo "touchpad_config (-e, --enable) [device_id]	enables tap to click and natural scrolling"
+    echo "touchpad_config (-d, --disable) [device_id]	disables tap to click and natural scrolling"
+    echo ""
+    echo "Note that the device_id is optional. If not provided, the program will automatically search for the touchpad device."
+    echo "Use the -l or --list option to see available devices."
+    echo "When specifying a device, enter the device's id, or the full name as displayed in quotes."
+    echo "Example:"
+    echo "	touchpad_config -e 12"
+}
+
+# Function to show the list of input devices
+show_device_list() {
+    xinput list | grep -i "pointer"
+}
+
+# Function to get the touchpad device ID
+get_touchpad_id() {
+    local device_name="$1"
+    xinput list --name-only | grep -i "TouchPad" | while read -r line; do
+        local device_id=$(xinput list --id-only "$line" 2>/dev/null)
+        if [ -n "$device_id" ]; then
+            echo "$device_id"
+            break
+        fi
+    done
+}
+
+# Function to enable tap to click and natural scrolling
+enable_touchpad() {
+    local device_id="$1"
+
+    if [ -z "$device_id" ]; then
+        # Automatically search for the touchpad device
+        device_id=$(get_touchpad_id 'TouchPad')
+
+        if [ -z "$device_id" ]; then
+            echo "Could not find the touchpad device ID."
+            echo "Make sure the touchpad is connected and functioning properly."
+            exit 1
+        fi
+    fi
+
+    echo "Enabling tap to click."
+    xinput set-prop "$device_id" "libinput Tapping Enabled" 1
+    echo "Enabling natural scrolling."
+    xinput set-prop "$device_id" "libinput Natural Scrolling Enabled" 1
+}
+
+# Function to disable tap to click and natural scrolling
+disable_touchpad() {
+    local device_id="$1"
+
+    if [ -z "$device_id" ]; then
+        # Automatically search for the touchpad device
+        device_id=$(get_touchpad_id 'TouchPad')
+
+        if [ -z "$device_id" ]; then
+            echo "Could not find the touchpad device ID."
+            echo "Make sure the touchpad is connected and functioning properly."
+            exit 1
+        fi
+    fi
+
+    echo "Disabling tap to click."
+    xinput set-prop "$device_id" "libinput Tapping Enabled" 0
+    echo "Disabling natural scrolling."
+    xinput set-prop "$device_id" "libinput Natural Scrolling Enabled" 0
+}
+
+# Checking the passed arguments to the script
+if [ $# -eq 0 ]; then
+    # If no arguments were passed, show the help message
+    show_help
+elif [ $# -gt 0 ]; then
+    case $1 in
+        -h|--help)
+            # Show the help message
+            show_help
+            ;;
+        -l|--list)
+            # Show the list of input devices
+            show_device_list
+            ;;
+        -e|--enable)
+            # Enable tap to click and natural scrolling
+            enable_touchpad "$2"
+            ;;
+        -d|--disable)
+            # Disable tap to click and natural scrolling
+            disable_touchpad "$2"
+            ;;
+        *)
+            # Unrecognized option
+            echo "Unrecognized option. Use '-h' or '--help' to see available options."
+            ;;
+    esac
+fi
