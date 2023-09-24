@@ -1,60 +1,77 @@
-#!/bin/sh
-# Show the help message
+#!/usr/bin/env bash
+
+# Show help message
 show_help() {
-    echo "Usage: touchpad_config <options> [device_id(optional)]"
-    echo ""
-    echo "Options: (without brackets)"
-    echo "touchpad_config (-h, --help)                  shows this help message"
-    echo "touchpad_config (-l, --list)                  shows a list of input devices"
-    echo "touchpad_config (-e, --enable) [device_id]    enables tap to click and natural scrolling"
-    echo "touchpad_config (-d, --disable) [device_id]   disables tap to click and natural scrolling"
-    echo ""
-    echo "Note that the device_id is optional; program automatically searches for touchpad device if not provided."
-    echo "Use the -l or --list option to see available devices."
-    echo "When specifying a device, enter the device's id, or the full name as displayed in quotes."
-    echo ""
-    echo "Example:"
-    echo "        touchpad_config -e 12"
+  echo "Options:"
+  echo "  -h, --help       Show this help message"
+  echo "  -l, --list       List all touchpad devices"
+  echo "  -e, --enable     Enable tap to click and natural scrolling"
+  echo "  -d, --disable    Disable tap to click and natural scrolling"
+  echo ""
+  echo "Example:"
+  echo "  touchpad_config -e 12"
 }
 
-# Show the list of input devices
+# List devices
 show_device_list() {
-    xinput list | grep -i "pointer"
+  xinput list
 }
 
-# Get the touchpad device ID
+# Get touchpad device ID
 get_touchpad_id() {
-    xinput list --name-only | grep -i "TouchPad" | xargs -I{} sh -c 'xinput list --id-only "{}" 2>/dev/null && exit 0; exit 1'
+  local touchpad_id=$(xinput list | grep -i "touchpad" | grep -o "id=[0-9]\+" | cut -d'=' -f2)
+  echo "$touchpad_id"
 }
 
-# Enable or disable tap to click and natural scrolling
-toggle_touchpad() {
-    local device_id="$1"
-    local enabled="$2"
-
-    [ -z "$device_id" ] && device_id=$(get_touchpad_id)
-    [ -z "$device_id" ] && {
-        echo "Could not find the touchpad device ID."
-        echo "Make sure the touchpad is connected and functioning properly."
-        exit 1
-    }
-
-    [ "$enabled" -eq 1 ] && echo "Enabling tap to click." || echo "Disabling tap to click."
-    xinput set-prop "$device_id" "libinput Tapping Enabled" "$enabled"
-
-    [ "$enabled" -eq 1 ] && echo "Enabling natural scrolling." || echo "Disabling natural scrolling."
-    xinput set-prop "$device_id" "libinput Natural Scrolling Enabled" "$enabled"
+# Detect the touchpad driver
+detect_touchpad_driver() {
+  local driver=$(xinput list-props "$(get_touchpad_id)" | grep -q "Synaptics" && echo "Synaptics" || echo "libinput")
+  echo "$driver"
 }
 
-# Check the passed arguments to the script
-if [ $# -eq 0 ]; then
-    show_help
-elif [ $# -gt 0 ]; then
-    case $1 in
-    -h | --help) show_help ;;
-    -l | --list) show_device_list ;;
-    -e | --enable) toggle_touchpad "$2" 1 ;;
-    -d | --disable) toggle_touchpad "$2" 0 ;;
-    *) echo "Unrecognized option. Use '-h' or '--help' to see available options." ;;
-    esac
-fi
+# Enable tap to click and natural scrolling
+enable_touchpad() {
+  local id="$1"
+  local driver="$2"
+  case "$driver" in
+    "Synaptics")
+      xinput set-prop "$id" "Synaptics Tap Action" 0 0 0 0 1 3 2
+      xinput set-prop "$id" "Synaptics Scrolling Distance" -55 -55
+      echo "Tap to click enabled" 
+      echo "Natural scrolling enabled." ;;
+    "libinput")
+      xinput set-prop "$id" "libinput Tapping Enabled" 1
+      xinput set-prop "$id" "libinput Natural Scrolling Enabled" 1
+      echo "Tap to click enabled" 
+      echo "Natural scrolling enabled." ;;
+    *) echo "Unsupported driver: $driver" ;;
+  esac
+}
+
+# Disable tap to click and natural scrolling
+disable_touchpad() {
+  local id="$1"
+  local driver="$2"
+  case "$driver" in
+    "Synaptics")
+      xinput set-prop "$id" "Synaptics Tap Action" 0 0 0 0 0 0 0
+      xinput set-prop "$id" "Synaptics Scrolling Distance" 1 1
+      echo "Tap to click disabled"
+      echo "Natural scrolling disabled." ;;
+    "libinput")
+      xinput set-prop "$id" "libinput Tapping Enabled" 0
+      xinput set-prop "$id" "libinput Natural Scrolling Enabled" 0
+      echo "Tap to click disabled"
+      echo "Natural scrolling disabled." ;;
+    *) echo "Unsupported driver: $driver" ;;
+  esac
+}
+
+# Handle arguments
+case "$1" in
+  "-h" | "--help") show_help ;;
+  "-l" | "--list") show_device_list ;;
+  "-e" | "--enable") id=$(get_touchpad_id) && driver=$(detect_touchpad_driver) && enable_touchpad "$id" "$driver" ;;
+  "-d" | "--disable")id=$(get_touchpad_id) && driver=$(detect_touchpad_driver) && disable_touchpad "$id" "$driver" ;;
+  *) show_help && exit 1 ;;
+esac
