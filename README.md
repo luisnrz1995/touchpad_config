@@ -15,7 +15,7 @@ It provides a simple command-line interface to configure the touchpad settings o
 
 ## Dependencies
 
-- `xorg-xinput`
+- `xinput`
 
 ## Install
 
